@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日系極簡風旅遊行程規劃器 - 蘇杭水鄉</title>
+    <!-- 載入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind 配置：設置湖水綠和日系極簡字體 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lake-green': '#00ADB5', // 主湖水綠
+                        'mint-light': '#B2EBF2', // 淺色背景
+                        'accent': '#39AEA9', // 點綴色
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'Microsoft JhengHei', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 隱藏滾動條但保持滑動功能 */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        /* App 專用背景 */
+        body {
+            background-color: #f7f7f7;
+        }
+        /* 確保 modal 居中並覆蓋一切 */
+        .modal-overlay {
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="font-sans pb-20"> <!-- 增加底部 padding 以容納新增按鈕 -->
+
+    <!-- 1. 頂部導航與標題 -->
+    <header class="sticky top-0 z-20 bg-white shadow-sm p-4 border-b border-gray-100">
+        <h1 class="text-xl font-bold text-gray-800 text-center">
+            蘇杭水鄉 7 日春節終極攻略
+        </h1>
+        <p class="text-xs text-center text-gray-500 mt-1">
+            日系極簡風規劃器 | {{ currentDay.title }}
+        </p>
+    </header>
+
+    <!-- 2. 橫向日期選單 (App 樣式) -->
+    <nav class="sticky top-16 z-10 bg-white shadow-md">
+        <div class="flex overflow-x-auto hide-scrollbar py-3 px-2">
+            <div v-for="day in itinerary" :key="day.day"
+                @click="setCurrentDate(day.day)"
+                :class="{'bg-lake-green text-white shadow-lg': currentDate === day.day, 'bg-gray-100 text-gray-700 hover:bg-gray-200': currentDate !== day.day}"
+                class="flex-shrink-0 mx-1 p-3 rounded-xl cursor-pointer transition-all duration-300 min-w-[100px] text-center"
+            >
+                <div class="text-xs font-semibold">{{ day.date }}</div>
+                <div class="text-sm font-bold">{{ day.city }}</div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 3. 行程列表 -->
+    <main class="p-4 pt-6">
+
+        <!-- 天氣資訊與地點總覽 -->
+        <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-md mb-6 border-b-4 border-lake-green">
+            <div class="flex items-center text-lg font-bold text-gray-800">
+                <svg class="w-5 h-5 mr-2 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                {{ currentDay.city }}
+            </div>
+            <!-- 天氣顯示 -->
+            <div class="flex items-center text-md font-extrabold text-red-600 bg-mint-light px-3 py-1 rounded-full">
+                <span v-html="getWeatherIcon(currentDay.weather)" class="mr-1"></span>
+                {{ currentDay.weather }} / {{ currentDay.temp }}
+            </div>
+        </div>
+
+        <!-- 春節警告區塊 (新增) -->
+        <div v-if="currentDay.cnyWarning" 
+             :class="currentDay.day >= 2 && currentDay.day <= 6 ? 'bg-red-50 border-red-300 text-red-800' : 'bg-yellow-50 border-yellow-300 text-yellow-800'"
+             class="p-3 border rounded-xl mb-6 flex items-start text-sm transition-colors duration-300"
+        >
+            <svg class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <div>
+                <strong class="block mb-1 text-red-900">春節景區特別注意事項:</strong>
+                <span v-html="currentDay.cnyWarning.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')"></span>
+            </div>
+        </div>
+
+        <div v-if="!currentDay.schedule || currentDay.schedule.length === 0" class="text-center p-12 text-gray-400">
+            <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M10 12h.01"></path></svg>
+            <p>當日行程尚未規劃，點擊下方新增。</p>
+        </div>
+
+        <!-- 豐富的行程卡片列表 (Loop over schedule) -->
+        <div v-for="(item, index) in currentDay.schedule" :key="index"
+            class="bg-white rounded-xl shadow-lg mb-6 p-4 transition-all duration-300 hover:shadow-xl border-l-4 border-lake-green"
+        >
+            <div class="flex items-start mb-3">
+                <!-- 時間與圖示 -->
+                <div class="flex-shrink-0 mr-4 pt-1">
+                    <span v-html="getScheduleIcon(item.type)" class="text-2xl leading-none"></span>
+                </div>
+                <!-- 標題與細節 -->
+                <div class="flex-grow">
+                    <div class="text-sm font-bold text-accent mb-1">{{ item.time }}</div>
+                    <div class="text-lg font-extrabold text-gray-800">{{ item.item }}</div>
+                    <p class="text-xs text-gray-500 mt-1">{{ item.detail }}</p>
+                </div>
+                <!-- 預估費用 -->
+                <div class="flex-shrink-0 text-right ml-4 pt-1">
+                    <div class="text-sm font-semibold text-gray-700 flex items-center justify-end">
+                        <svg class="w-4 h-4 mr-1 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9H7m14 0c0-4.97-4.03-9-9-9S3 4.03 3 9h18zM3 15h18c0 4.97-4.03 9-9 9s-9-4.03-9-9z"></path></svg>
+                        <span class="ml-1 text-red-600">{{ formatCost(item.cost) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按鈕 -->
+            <div class="flex justify-start space-x-2 border-t pt-3 mt-3">
+                <!-- 編輯按鈕：現在傳遞 day 和 index -->
+                <button @click="editItem(currentDay.day, index)"
+                    class="flex items-center p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors text-sm"
+                >
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-7-7l-4 4-2 2v4h4l2-2 4-4m-7-7l2 2m4 4l2 2"></path></svg>
+                    編輯
+                </button>
+                <!-- 刪除按鈕：現在傳遞 day 和 index -->
+                <button @click="deleteItem(currentDay.day, index)"
+                    class="flex items-center p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm"
+                >
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    刪除
+                </button>
+                <button @click="openMap(item.location ? item.location.name : item.item)"
+                    class="flex items-center p-2 rounded-lg bg-lake-green text-white hover:bg-accent transition-colors text-sm"
+                >
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    導航
+                </button>
+                
+                <!-- 新增 AI 建議按鈕 -->
+                <button @click="generateSuggestion(currentDay.day, index)"
+                    :disabled="isGenerating"
+                    class="flex items-center p-2 rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors text-sm disabled:opacity-50"
+                >
+                    <span v-if="isGenerating" class="animate-spin mr-1">🔄</span>
+                    <span v-else>✨ 替代方案建議</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- 4. 新增按鈕 (固定底部 App 樣式) -->
+    <div class="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-2xl z-20">
+        <button @click="openAddItemModal"
+            class="w-full py-3 rounded-xl text-white font-bold text-lg bg-lake-green hover:bg-accent transition-all duration-300 shadow-md"
+        >
+            + 新增行程
+        </button>
+    </div>
+
+    <!-- 5. 新增/編輯 Modal 視窗 -->
+    <transition name="modal">
+        <div v-if="isModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
+            <div class="bg-white w-11/12 sm:w-96 p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-lake-green">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
+                    {{ editingItem.originalIndex !== null ? '編輯行程' : '新增行程' }}
+                </h3>
+                
+                <form @submit.prevent="saveItem" class="space-y-4">
+                    <div>
+                        <label for="time" class="block text-sm font-medium text-gray-700">時間 (如: 14:00 / 多組時刻表)</label>
+                        <input id="time" v-model="editingItem.time" type="text" required
+                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-accent focus:border-accent text-gray-800"
+                               placeholder="時間段或多組時刻表，例如: 10:30 / 11:30"
+                        >
+                    </div>
+                    <div>
+                        <label for="item" class="block text-sm font-medium text-gray-700">地點 / 活動名稱</label>
+                        <input id="item" v-model="editingItem.item" type="text" required
+                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-accent focus:border-accent text-gray-800"
+                               placeholder="拙政園 / 高鐵"
+                        >
+                    </div>
+                    <div>
+                        <label for="detail" class="block text-sm font-medium text-gray-700">細節描述</label>
+                        <textarea id="detail" v-model="editingItem.detail" rows="3"
+                                  class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-accent focus:border-accent text-gray-800"
+                                  placeholder="需提前 7 天預約 / 二等座 3選1"
+                        ></textarea>
+                    </div>
+                    <div>
+                        <label for="cost" class="block text-sm font-medium text-gray-700">預估費用 (人民幣，數字或文字)</label>
+                        <input id="cost" v-model="editingItem.cost" type="text"
+                               class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-accent focus:border-accent text-gray-800"
+                               placeholder="70 或 600-800 /車"
+                        >
+                    </div>
+                    
+                    <div class="flex justify-between pt-4">
+                        <button type="button" @click="isModalOpen = false"
+                                class="w-1/2 py-3 mr-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors font-semibold"
+                        >
+                            取消
+                        </button>
+                        <button type="submit"
+                                class="w-1/2 py-3 ml-2 rounded-lg text-white bg-lake-green hover:bg-accent transition-colors font-semibold"
+                        >
+                            儲存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </transition>
+
+    <!-- 6. LLM 建議 Modal 視窗 (新增) -->
+    <transition name="modal">
+        <div v-if="isSuggestionModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
+            <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[80vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-yellow-500">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 flex items-center">
+                    <span class="text-yellow-600 text-2xl mr-2">💡</span>
+                    {{ generatingItemName }} 的替代方案建議
+                </h3>
+
+                <div v-if="suggestionResult.text" class="prose max-w-none">
+                    <!-- 顯示 Markdown 格式的建議文本 -->
+                    <div v-html="renderMarkdown(suggestionResult.text)" class="text-gray-700 mb-6"></div>
+
+                    <!-- 引用來源 -->
+                    <div v-if="suggestionResult.sources.length" class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                        <p class="font-semibold mb-1">參考資訊來源 (Google 搜尋):</p>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li v-for="(source, sIndex) in suggestionResult.sources" :key="sIndex">
+                                <a :href="source.uri" target="_blank" class="text-accent hover:underline">{{ source.title || source.uri }}</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div v-else class="text-gray-500 text-center py-6">
+                    <span v-if="isGenerating" class="animate-spin inline-block mr-2 text-lake-green">🔄</span>
+                    載入中... 正在為您生成春節期間的備選建議。
+                </div>
+
+                <div class="flex justify-center pt-6">
+                    <button type="button" @click="isSuggestionModalOpen = false"
+                            class="py-3 px-8 rounded-lg text-white bg-yellow-600 hover:bg-yellow-700 transition-colors font-semibold shadow-md"
+                    >
+                        關閉
+                    </button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+</div>
+
+<script>
+    const { createApp, ref, computed } = Vue;
+
+    // LLM API 相關常數
+    const apiKey = ""; // 運行環境會自動提供
+    const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
+    
+    // 完整的旅遊數據，包含所有細節、多組時刻表和春節警告
+    const fullItineraryData = [
+        {
+            day: 1,
+            date: '2/15 (日)',
+            city: '上海 ➔ 蘇州',
+            title: '台北 ➔ 上海 ➔ 蘇州 (抵達日)',
+            weather: '多雲轉陰',
+            temp: '3°C ~ 8°C',
+            cnyWarning: '山塘街春節燈飾會更豐富，但人流會在晚飯後湧入。除夕夜小吃店多數休息，建議飯店內用餐。',
+            schedule: [
+                { time: '14:40 ➔ 16:30', item: '國際航班：台北 ➔ 上海 (虹橋 T1)', detail: '用時 1小時 50分', cost: 0, type: 'plane' },
+                { time: '18:22 / 18:52 / 19:00', item: '高鐵：上海虹橋 ➔ 蘇州', detail: '車程約 32-35 分鐘 (3選1車次)', cost: 39.5, type: 'train', location: { name: '蘇州站', lat: 31.3149, lng: 120.6190 } },
+                { 
+                    time: '晚間', 
+                    item: '景點：山塘街夜景', 
+                    detail: '地鐵/滴滴前往蘇州山塘街', 
+                    cost: '10-25 /車', 
+                    type: 'local',
+                    location: { name: '山塘街', lat: 31.3197, lng: 120.5960 }
+                },
+            ],
+        },
+        {
+            day: 2,
+            date: '2/16 (一)',
+            city: '蘇州市區',
+            title: '蘇州市區遊 (除夕)',
+            weather: '陰天',
+            temp: '3°C ~ 7°C',
+            cnyWarning: '🚨 **提前預約：** 蘇州博物館必須提前 7 天預約。景點在除夕當天 (2/16) 會提早至 **15:00-16:00** 停止售票及關門，請務必早上抵達。餐飲：除夕午餐僅能選擇少數簡餐店或連鎖餐廳。',
+            schedule: [
+                { 
+                    time: '08:30 ➔ 12:00', 
+                    item: '景點：拙政園 / 蘇州博物館', 
+                    detail: '需預約，建議一早前往避開人潮', 
+                    cost: '拙政園 ¥70', 
+                    type: 'attraction',
+                    location: { name: '拙政園/蘇博', lat: 31.3259, lng: 120.6270 }
+                },
+                { 
+                    time: '13:00 ➔ 15:30', 
+                    item: '景點：平江路歷史街區', 
+                    detail: '在老城區漫步，避開下午關門潮', 
+                    cost: 0, 
+                    type: 'attraction',
+                    location: { name: '平江路', lat: 31.3204, lng: 120.6358 }
+                },
+                { time: '晚間', item: '晚餐：飯店內年夜飯 (強烈推薦)', detail: '需提前數月預訂', cost: '400-800 /人', type: 'food' },
+            ],
+        },
+        {
+            day: 3,
+            date: '2/17 (二)',
+            city: '蘇州市區',
+            title: '蘇州市區遊 (初一)',
+            weather: '多雲',
+            temp: '4°C ~ 9°C',
+            cnyWarning: '⚠️ **寺廟警告：** 初一 (2/17) 是寒山寺香火最盛之日，人流將採取嚴格管制，會耗費大量排隊時間。推薦專注參觀 **虎丘**，虎丘相對較分散，人流壓力較小。',
+            schedule: [
+                { 
+                    time: '08:30 ➔ 12:30', 
+                    item: '景點：虎丘 / 寒山寺 (擇一)', 
+                    detail: '虎丘人流較少，推薦優先', 
+                    cost: '虎丘 ¥60', 
+                    type: 'attraction',
+                    location: { name: '虎丘', lat: 31.3323, lng: 120.5732 }
+                },
+                { 
+                    time: '14:00 ➔ 17:00', 
+                    item: '景點：金雞湖景區', 
+                    detail: '周邊商場設施正常營業，是避開老城區人潮的好選擇', 
+                    cost: 0, 
+                    type: 'attraction',
+                    location: { name: '金雞湖', lat: 31.3142, lng: 120.6720 }
+                },
+                { time: '當地交通', item: '地鐵/滴滴費用', detail: '老城區 ➔ 金雞湖約 ¥5 /人', cost: '5-40 /人', type: 'local' },
+            ],
+        },
+        {
+            day: 4,
+            date: '2/18 (三)',
+            city: '蘇州 ➔ 烏鎮',
+            title: '前往水鄉烏鎮 (西柵)',
+            weather: '小雨',
+            temp: '2°C ~ 6°C',
+            cnyWarning: '🚨 **烏鎮西柵：** 搖櫓船和夜景渡船會大排長龍。景區內餐廳幾乎全部爆滿，務必在 **17:00** 前就去排隊。',
+            schedule: [
+                { time: '10:00 發', item: '交通：私人包車 (門對門)', detail: '蘇州日航 ➔ 烏鎮西柵景區 (約 1.5 小時)', cost: '600-800 /車', type: 'car' },
+                { 
+                    time: '下午', 
+                    item: '景點：烏鎮西柵白日遊', 
+                    detail: '景區內入住通安客棧，方便夜遊', 
+                    cost: '門票 ¥150', 
+                    type: 'attraction',
+                    location: { name: '烏鎮西柵', lat: 30.7486, lng: 120.4795 }
+                },
+                { time: '晚間', item: '景點：西柵夜景 (重點)', detail: '夜遊人潮巨大，需提前規劃路線', cost: 0, type: 'attraction' },
+            ],
+        },
+        {
+            day: 5,
+            date: '2/19 (四)',
+            city: '烏鎮 ➔ 杭州',
+            title: '前往杭州，西湖初體驗',
+            weather: '多雲',
+            temp: '4°C ~ 10°C',
+            cnyWarning: '⚠️ **西湖：** 初四 (2/19) 開始返鄉/遊客高峰，西湖周邊道路會有嚴格的交通管制，計程車可能無法直達核心景點。遊船碼頭排隊人數會比平時多 2-3 倍。',
+            schedule: [
+                { time: '10:30 / 11:30 / 12:30', item: '交通：直達大巴 (3選1)', detail: '烏鎮客運站 ➔ 杭州東站 (約 1.5 小時)', cost: '35-50 /人', type: 'bus' },
+                { 
+                    time: '下午', 
+                    item: '景點：西湖環湖漫步', 
+                    detail: '建議從湖濱路開始，搭乘環湖電瓶車', 
+                    cost: '電瓶車 ¥40-50 /人', 
+                    type: 'attraction',
+                    location: { name: '西湖 (湖濱路)', lat: 30.2599, lng: 120.1585 }
+                },
+                { time: '晚餐', item: '外婆家/綠茶餐廳', detail: '杭州知名連鎖，需準備排隊', cost: '100-200 /人', type: 'food' },
+            ],
+        },
+        {
+            day: 6,
+            date: '2/20 (五)',
+            city: '杭州 ⇄ 千島湖',
+            title: '千島湖一日遊',
+            weather: '晴時多雲',
+            temp: '5°C ~ 12°C',
+            cnyWarning: '💡 **千島湖：** 碼頭登船手續和各島間的渡船仍可能排隊，建議早上搭乘最早班次高鐵。備案：若選擇市區靈隱寺，人流巨大，請搭乘公共交通。',
+            schedule: [
+                // 已有 3 選 1，新增 detail 說明
+                { time: '08:33 / 09:12 / 10:07', item: '去程高鐵：杭州東 ➔ 千島湖站', detail: '車程約 1 小時 (3選1車次)', cost: 70, type: 'train', location: { name: '千島湖站', lat: 29.5630, lng: 119.0069 } },
+                { 
+                    time: '當日', 
+                    item: '景點：千島湖登島遊覽', 
+                    detail: '需從高鐵站轉接駁巴士/滴滴前往碼頭', 
+                    cost: '船票/門票 ¥200+', 
+                    type: 'attraction',
+                    location: { name: '千島湖 (中心湖區)', lat: 29.5393, lng: 119.0069 }
+                },
+                // 已有 3 選 1，新增 detail 說明
+                { time: '17:28 / 18:14 / 18:50', item: '回程高鐵：千島湖站 ➔ 杭州東', detail: '車程約 1 小時 (3選1車次)', cost: 70, type: 'train', location: { name: '杭州東站', lat: 30.3168, lng: 120.2104 } },
+            ],
+        },
+        {
+            day: 7,
+            date: '2/21 (六)',
+            city: '杭州 ➔ 上海 ➔ 台北',
+            title: '返程日 (初六高峰)',
+            weather: '多雲',
+            temp: '6°C ~ 10°C',
+            cnyWarning: '⚠️ **返程高峰：** 初六是春節返程高峰的尾聲，高鐵票緊張，且上海虹橋機場人潮巨大。請務必預留充足的轉車和安檢時間 (至少 3 小時)。',
+            schedule: [
+                { time: '上午', item: '景點：飯店附近自由活動/購買伴手禮', detail: '建議在杭州市區輕鬆度過', cost: 0, type: 'local' },
+                // 已有 3 選 1，新增 detail 說明
+                { time: '15:21 / 15:43 / 16:15', item: '高鐵：杭州東 ➔ 上海虹橋', detail: '車程約 47 分鐘 (3選1車次)', cost: 73, type: 'train', location: { name: '上海虹橋站', lat: 31.1818, lng: 121.3283 } },
+                { time: '19:40 ➔ 21:45', item: '國際航班：上海虹橋 ➔ 台北', detail: '高鐵下車後需轉 T2 航廈', cost: 0, type: 'plane' },
+            ],
+        },
+    ];
+
+    createApp({
+        setup() {
+            // Vue 狀態管理
+            const currentDate = ref(1); // 當前選擇的日期 (Day 1-7)
+            const itinerary = ref(fullItineraryData); // 完整的行程數據
+            const isModalOpen = ref(false); // 新增/編輯 Modal
+            const editingItem = ref({ // 用於編輯或新增的資料暫存
+                time: '',
+                item: '',
+                detail: '',
+                cost: '',
+                type: 'local',
+                originalDay: null, // 記錄原始 Day
+                originalIndex: null // 記錄原始 Index
+            });
+
+            // === LLM 相關狀態 (新增) ===
+            const suggestionResult = ref({ text: '', sources: [] });
+            const isGenerating = ref(false);
+            const isSuggestionModalOpen = ref(false);
+            const generatingItemName = ref('');
+            // ===========================
+
+
+            // --- Computed Properties ---
+
+            const currentDay = computed(() => {
+                // 從 itinerary 陣列中找到當前選擇的日期數據
+                return itinerary.value.find(day => day.day === currentDate.value) || { schedule: [] };
+            });
+
+            // --- Utility Functions ---
+
+            const formatCost = (cost) => {
+                // 格式化費用顯示
+                if (cost === 0 || cost === '0') return '免費';
+                if (typeof cost === 'number') return `¥ ${cost}`;
+                // 處理費用範圍或文字描述
+                return `¥ ${cost}`;
+            };
+            
+            const getWeatherIcon = (weather) => {
+                // 根據天氣情況回傳 Emoji
+                if (weather.includes('晴')) return '<span>☀️</span>';
+                if (weather.includes('雨')) return '<span>🌧️</span>';
+                if (weather.includes('陰')) return '<span>☁️</span>';
+                if (weather.includes('多雲')) return '<span>🌥️</span>';
+                return '<span>🌡️</span>';
+            };
+
+            const getScheduleIcon = (type) => {
+                // 根據行程類型回傳 Emoji 或圖示
+                switch (type) {
+                    case 'plane': return '<span>✈️</span>';
+                    case 'train': return '<span>🚄</span>';
+                    case 'bus': return '<span>🚌</span>';
+                    case 'car': return '<span>🚗</span>';
+                    case 'attraction': return '<span>🏛️</span>'; // 景點
+                    case 'food': return '<span>🍲</span>';
+                    default: return '<span>📍</span>'; // 其他/當地交通
+                }
+            };
+            
+            // 簡單的 Markdown 渲染 (將 * List 和 **Bold** 轉換為 HTML)
+            const renderMarkdown = (text) => {
+                if (!text) return '';
+                // 替換粗體
+                let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // 替換 Markdown 列表為 HTML 列表
+                let listHtml = [];
+                let isList = false;
+
+                // 按行處理
+                const lines = html.split('\n');
+                
+                lines.forEach(line => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine.startsWith('* ')) {
+                        if (!isList) {
+                            listHtml.push('<ul>');
+                            isList = true;
+                        }
+                        listHtml.push(`<li>${trimmedLine.substring(2).trim()}</li>`);
+                    } else {
+                        if (isList) {
+                            listHtml.push('</ul>');
+                            isList = false;
+                        }
+                        // 將其他文本作為段落處理
+                        if (trimmedLine) {
+                            listHtml.push(`<p>${trimmedLine}</p>`);
+                        }
+                    }
+                });
+
+                if (isList) {
+                    listHtml.push('</ul>');
+                }
+                
+                return listHtml.join('');
+            };
+
+
+            // --- Methods ---
+
+            const setCurrentDate = (day) => {
+                currentDate.value = day;
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            const openAddItemModal = () => {
+                // 重置編輯項目為空白，準備新增
+                editingItem.value = {
+                    time: '',
+                    item: '',
+                    detail: '',
+                    cost: '',
+                    type: 'local',
+                    originalDay: currentDate.value,
+                    originalIndex: null
+                };
+                isModalOpen.value = true;
+            };
+
+            const editItem = (day, index) => {
+                // 複製項目到 editingItem
+                const dayData = itinerary.value.find(d => d.day === day);
+                if (dayData && dayData.schedule[index]) {
+                    // 使用淺拷貝以確保數據分離
+                    const itemToEdit = { ...dayData.schedule[index] };
+                    
+                    editingItem.value = { 
+                        ...itemToEdit,
+                        originalDay: day,
+                        originalIndex: index
+                    };
+                    // 確保 location 資訊不會被編輯，只編輯文字部分
+                    delete editingItem.value.location; 
+                    isModalOpen.value = true;
+                }
+            };
+
+            const saveItem = () => {
+                const dayData = itinerary.value.find(d => d.day === editingItem.value.originalDay);
+                if (!dayData) {
+                    console.error("找不到對應的日期數據");
+                    isModalOpen.value = false;
+                    return;
+                }
+
+                // 移除輔助欄位
+                const newItem = {
+                    time: editingItem.value.time,
+                    item: editingItem.value.item,
+                    detail: editingItem.value.detail,
+                    cost: editingItem.value.cost,
+                    type: editingItem.value.type || 'local',
+                    // location 座標資訊不支援在 Modal 中編輯，保持現有（如果存在）
+                };
+
+                if (editingItem.value.originalIndex !== null) {
+                    // 編輯現有項目，合併現有 location 資訊
+                    const existingItem = dayData.schedule[editingItem.value.originalIndex];
+                    dayData.schedule[editingItem.value.originalIndex] = { 
+                        ...(existingItem.location && { location: existingItem.location }), // 保留 location
+                        ...newItem 
+                    };
+                } else {
+                    // 新增項目 (簡單新增，預設 type: local)
+                    dayData.schedule.push(newItem);
+                    // 排序行程 (簡單按時間字符串排序)
+                    dayData.schedule.sort((a, b) => (a.time > b.time) ? 1 : -1);
+                }
+                
+                isModalOpen.value = false;
+            };
+
+            const deleteItem = (day, index) => {
+                // 使用自定義 modal 替代 alert
+                // 在 iFrame 環境中，window.confirm() 通常是可用的，但為了最佳實踐，如果需要更美觀的 UI，應使用自訂 Modal。這裡沿用簡單的 confirm()。
+                if (confirm('確定要刪除這個行程嗎？')) {
+                    const dayData = itinerary.value.find(d => d.day === day);
+                    if (dayData && dayData.schedule.length > index) {
+                        dayData.schedule.splice(index, 1);
+                    }
+                }
+            };
+
+            const openMap = (locationName) => {
+                // 模擬導航功能，導向 Google 地圖搜索
+                window.open(`https://www.google.com/maps/search/${locationName}`, '_blank');
+            };
+            
+            // === LLM 核心功能: 生成替代方案 (新增) ===
+            // 使用指數退避進行重試
+            const exponentialBackoffFetch = async (url, options, maxRetries = 5) => {
+                for (let retries = 0; retries < maxRetries; retries++) {
+                    try {
+                        const response = await fetch(url, options);
+                        if (response.status === 429 && retries < maxRetries - 1) {
+                            const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue; // 重試
+                        }
+                        if (!response.ok) {
+                            throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
+                        }
+                        return response;
+                    } catch (error) {
+                        if (retries === maxRetries - 1) throw error;
+                        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        // 不在 console 記錄重試錯誤
+                    }
+                }
+                throw new Error("API 請求失敗次數過多。");
+            };
+
+            const generateSuggestion = async (day, index) => {
+                isGenerating.value = true;
+                isSuggestionModalOpen.value = false; // 確保先關閉舊的
+                suggestionResult.value = { text: '', sources: [] }; // 重置結果
+                
+                const dayData = itinerary.value.find(d => d.day === day);
+                const item = dayData.schedule[index];
+                generatingItemName.value = item.item;
+
+                // 彈出 loading modal
+                isSuggestionModalOpen.value = true;
+                suggestionResult.value.text = ''; // 讓 v-else 顯示載入中...
+
+
+                const systemPrompt = "You are a local travel expert in the Jiangsu and Zhejiang region (Suzhou, Hangzhou, Wuzhen, Shanghai). Your task is to provide three high-quality, actionable alternative suggestions or backup plans for a given itinerary item. The suggestions must be appropriate for a Chinese New Year (CNY) trip and consider the crowd warnings and weather provided. Respond concisely in Traditional Chinese, strictly as a bulleted list (use Markdown format: '*' for list items). Do not include an introduction, conclusion, or any extra text outside the bulleted list.";
+                
+                const userQuery = `Current City: ${dayData.city}, Date: ${dayData.date}, Weather: ${dayData.weather}, CNY Warning: ${dayData.cnyWarning}. The original planned activity is: ${item.item} (${item.detail}). Generate 3 alternative suggestions for this specific time slot.`;
+                
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    // 使用 Google Search 進行資訊接地，確保建議是實時且準確的
+                    tools: [{ "google_search": {} }], 
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    },
+                };
+
+                let result = null;
+
+                try {
+                    const response = await exponentialBackoffFetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    result = await response.json();
+
+                    if (result && result.candidates && result.candidates.length > 0) {
+                        const candidate = result.candidates[0];
+                        const text = candidate.content?.parts?.[0]?.text || '未能生成有效的建議。';
+                        suggestionResult.value.text = text;
+
+                        let sources = [];
+                        const groundingMetadata = candidate.groundingMetadata;
+                        if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                            sources = groundingMetadata.groundingAttributions
+                                .map(attribution => ({
+                                    uri: attribution.web?.uri,
+                                    title: attribution.web?.title,
+                                }))
+                                .filter(source => source.uri && source.title);
+                        }
+                        suggestionResult.value.sources = sources;
+                    } else {
+                        suggestionResult.value.text = '未能獲得有效的生成結果，請檢查網絡或稍後再試。';
+                    }
+
+                } catch (error) {
+                    console.error("Error fetching Gemini content:", error);
+                    suggestionResult.value.text = `API 請求失敗，無法取得建議：${error.message}`;
+                } finally {
+                    isGenerating.value = false;
+                }
+            };
+            // ===============================================
+
+            return {
+                currentDate,
+                itinerary,
+                currentDay,
+                isModalOpen,
+                editingItem,
+                isSuggestionModalOpen, // 新增
+                suggestionResult,      // 新增
+                isGenerating,          // 新增
+                generatingItemName,    // 新增
+                setCurrentDate,
+                openAddItemModal,
+                editItem,
+                saveItem,
+                deleteItem,
+                openMap,
+                getWeatherIcon,
+                getScheduleIcon,
+                formatCost,
+                generateSuggestion,    // 新增
+                renderMarkdown         // 新增
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
