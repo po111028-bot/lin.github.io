@@ -1,4 +1,4 @@
-$ git remote add origin https://github.com/eddiekao/eddiekao.github.io.git
+$ git remote add origin https://github.com/po111028-bot/lin.github.io.git
 
 $ git push -u origin master
 Counting objects: 3, done.
