@@ -264,7 +264,7 @@
                         </h4>
                         <ul class="list-disc list-inside space-y-2 text-gray-700">
                             <li v-for="(transport, tIndex) in guideSummary.transport" :key="tIndex" class="text-sm">
-                                <strong>Day {{ guideSummary.transport.findIndex(t => t.item === transport.item) + 1 }} - {{ transport.item }} ({{ transport.time }})：</strong> {{ transport.detail }} <span class="font-semibold text-red-500">({{ formatCost(transport.cost) }})</span>
+                                <strong>Day {{ transport.day }} - {{ transport.item }} ({{ transport.time }})：</strong> {{ transport.detail }} <span class="font-semibold text-red-500">({{ formatCost(transport.cost) }})</span>
                             </li>
                         </ul>
                     </div>
@@ -306,14 +306,15 @@
 </div>
 
 <script>
-    const { createApp, ref, computed } = Vue;
+    // 關鍵修正：引入 watch 函式以進行 Local Storage 監聽
+    const { createApp, ref, computed, watch } = Vue;
 
     // LLM API 相關常數
     // ⚠️ 部署到 GitHub Pages 時，您必須將此處的 "" 替換為您自己的 Google AI API Key，否則「替代方案建議」功能將無法運作。
-    const apiKey = ""; 
+    const apiKey = "AIzaSyCujbgqNjgcPVyG7SuQaId0X4KAJ527QFc"; 
     const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
     
-    // 完整的旅遊數據，包含所有細節、多組時刻表和春節警告
+    // 完整的旅遊數據，包含所有細節、多組時刻表和春節警告 (為避免程式碼過長，只保留結構，數據與上一次提供的一致)
     const fullItineraryData = [
         {
             day: 1,
@@ -478,7 +479,14 @@
         setup() {
             // Vue 狀態管理
             const currentDate = ref(1); // 當前選擇的日期 (Day 1-7)
-            const itinerary = ref(fullItineraryData); // 完整的行程數據
+            
+            // === [Local Storage 修正：數據讀取 - 確保持久化] ===
+            const savedItinerary = localStorage.getItem('sugangItinerary');
+            const initialData = savedItinerary ? JSON.parse(savedItinerary) : fullItineraryData;
+            
+            const itinerary = ref(initialData); // 完整的行程數據
+            // ===================================
+            
             const isModalOpen = ref(false); // 新增/編輯 Modal
             const editingItem = ref({ // 用於編輯或新增的資料暫存
                 time: '',
@@ -490,21 +498,21 @@
                 originalIndex: null // 記錄原始 Index
             });
 
-            // === LLM 相關狀態 (新增) ===
+            // === LLM 相關狀態 ===
             const suggestionResult = ref({ text: '', sources: [] });
             const isGenerating = ref(false);
             const isSuggestionModalOpen = ref(false);
             const generatingItemName = ref('');
             // ===========================
 
-            // === 交通指南狀態 (新增) ===
+            // === 交通指南狀態 ===
             const isGuideModalOpen = ref(false);
             // ===========================
 
 
             // --- Computed Properties ---
             
-            // 新增: 交通指南總結
+            // 交通指南總結
             const guideSummary = computed(() => {
                 const transport = [];
                 const warnings = [];
@@ -693,8 +701,6 @@
             };
 
             const deleteItem = (day, index) => {
-                // 使用自定義 modal 替代 alert
-                // 在 iFrame 環境中，window.confirm() 通常是可用的，但為了最佳實踐，如果需要更美觀的 UI，應使用自訂 Modal。這裡沿用簡單的 confirm()。
                 if (confirm('確定要刪除這個行程嗎？')) {
                     const dayData = itinerary.value.find(d => d.day === day);
                     if (dayData && dayData.schedule.length > index) {
@@ -708,8 +714,7 @@
                 window.open(`https://www.google.com/maps/search/${locationName}`, '_blank');
             };
             
-            // === LLM 核心功能: 生成替代方案 (新增) ===
-            // 使用指數退避進行重試
+            // === LLM 核心功能: 生成替代方案 ===
             const exponentialBackoffFetch = async (url, options, maxRetries = 5) => {
                 for (let retries = 0; retries < maxRetries; retries++) {
                     try {
@@ -717,7 +722,7 @@
                         if (response.status === 429 && retries < maxRetries - 1) {
                             const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
                             await new Promise(resolve => setTimeout(resolve, delay));
-                            continue; // 重試
+                            continue;
                         }
                         if (!response.ok) {
                             throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
@@ -727,7 +732,6 @@
                         if (retries === maxRetries - 1) throw error;
                         const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
                         await new Promise(resolve => setTimeout(resolve, delay));
-                        // 不在 console 記錄重試錯誤
                     }
                 }
                 throw new Error("API 請求失敗次數過多。");
@@ -735,16 +739,15 @@
 
             const generateSuggestion = async (day, index) => {
                 isGenerating.value = true;
-                isSuggestionModalOpen.value = false; // 確保先關閉舊的
-                suggestionResult.value = { text: '', sources: [] }; // 重置結果
+                isSuggestionModalOpen.value = false;
+                suggestionResult.value = { text: '', sources: [] };
                 
                 const dayData = itinerary.value.find(d => d.day === day);
                 const item = dayData.schedule[index];
                 generatingItemName.value = item.item;
 
-                // 彈出 loading modal
                 isSuggestionModalOpen.value = true;
-                suggestionResult.value.text = ''; // 讓 v-else 顯示載入中...
+                suggestionResult.value.text = '';
 
 
                 const systemPrompt = "You are a local travel expert in the Jiangsu and Zhejiang region (Suzhou, Hangzhou, Wuzhen, Shanghai). Your task is to provide three high-quality, actionable alternative suggestions or backup plans for a given itinerary item. The suggestions must be appropriate for a Chinese New Year (CNY) trip and consider the crowd warnings and weather provided. Respond concisely in Traditional Chinese, strictly as a bulleted list (use Markdown format: '*' for list items). Do not include an introduction, conclusion, or any extra text outside the bulleted list.";
@@ -755,7 +758,6 @@
 
                 const payload = {
                     contents: [{ parts: [{ text: userQuery }] }],
-                    // 使用 Google Search 進行資訊接地，確保建議是實時且準確的
                     tools: [{ "google_search": {} }], 
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
@@ -807,18 +809,26 @@
             };
             // ===============================================
 
+            // === [Local Storage 修正：數據寫入 - 實現持久化] ===
+            // 監聽器，當行程數據改變時，自動寫入 Local Storage
+            watch(itinerary, (newItinerary) => {
+                localStorage.setItem('sugangItinerary', JSON.stringify(newItinerary));
+            }, { deep: true });
+            // ===================================
+
+
             return {
                 currentDate,
                 itinerary,
                 currentDay,
                 isModalOpen,
                 editingItem,
-                isSuggestionModalOpen, // LLM
-                suggestionResult,      // LLM
-                isGenerating,          // LLM
-                generatingItemName,    // LLM
-                isGuideModalOpen,      // 新增
-                guideSummary,          // 新增
+                isSuggestionModalOpen,
+                suggestionResult,
+                isGenerating,
+                generatingItemName,
+                isGuideModalOpen,
+                guideSummary,
                 setCurrentDate,
                 openAddItemModal,
                 editItem,
@@ -828,8 +838,8 @@
                 getWeatherIcon,
                 getScheduleIcon,
                 formatCost,
-                generateSuggestion,    // LLM
-                renderMarkdown         // LLM
+                generateSuggestion,
+                renderMarkdown
             };
         }
     }).mount('#app');
