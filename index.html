@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日系極簡風旅遊行程規劃器 - 蘇杭水鄉</title>
-    <!-- 載入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 載入 Vue 3 CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Tailwind 配置：設置湖水綠和日系極簡字體 -->
     <script>
         tailwind.config = {
             theme: {
@@ -46,19 +43,20 @@
 </head>
 <body>
 
-<div id="app" class="font-sans pb-20"> <!-- 增加底部 padding 以容納新增按鈕 -->
-
-    <!-- 1. 頂部導航與標題 -->
-    <header class="sticky top-0 z-20 bg-white shadow-sm p-4 border-b border-gray-100">
+<div id="app" class="font-sans pb-20"> <header class="sticky top-0 z-20 bg-white shadow-sm p-4 border-b border-gray-100">
         <h1 class="text-xl font-bold text-gray-800 text-center">
             蘇杭水鄉 7 日春節終極攻略
         </h1>
         <p class="text-xs text-center text-gray-500 mt-1">
             日系極簡風規劃器 | {{ currentDay.title }}
         </p>
+        <button @click="isGuideModalOpen = true"
+            class="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-mint-light text-accent hover:bg-lake-green hover:text-white transition-colors text-xs font-semibold shadow-inner"
+        >
+            交通/警告指南 🚌
+        </button>
     </header>
 
-    <!-- 2. 橫向日期選單 (App 樣式) -->
     <nav class="sticky top-16 z-10 bg-white shadow-md">
         <div class="flex overflow-x-auto hide-scrollbar py-3 px-2">
             <div v-for="day in itinerary" :key="day.day"
@@ -72,23 +70,19 @@
         </div>
     </nav>
 
-    <!-- 3. 行程列表 -->
     <main class="p-4 pt-6">
 
-        <!-- 天氣資訊與地點總覽 -->
         <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-md mb-6 border-b-4 border-lake-green">
             <div class="flex items-center text-lg font-bold text-gray-800">
                 <svg class="w-5 h-5 mr-2 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
                 {{ currentDay.city }}
             </div>
-            <!-- 天氣顯示 -->
             <div class="flex items-center text-md font-extrabold text-red-600 bg-mint-light px-3 py-1 rounded-full">
                 <span v-html="getWeatherIcon(currentDay.weather)" class="mr-1"></span>
                 {{ currentDay.weather }} / {{ currentDay.temp }}
             </div>
         </div>
 
-        <!-- 春節警告區塊 (新增) -->
         <div v-if="currentDay.cnyWarning" 
              :class="currentDay.day >= 2 && currentDay.day <= 6 ? 'bg-red-50 border-red-300 text-red-800' : 'bg-yellow-50 border-yellow-300 text-yellow-800'"
              class="p-3 border rounded-xl mb-6 flex items-start text-sm transition-colors duration-300"
@@ -105,22 +99,18 @@
             <p>當日行程尚未規劃，點擊下方新增。</p>
         </div>
 
-        <!-- 豐富的行程卡片列表 (Loop over schedule) -->
         <div v-for="(item, index) in currentDay.schedule" :key="index"
             class="bg-white rounded-xl shadow-lg mb-6 p-4 transition-all duration-300 hover:shadow-xl border-l-4 border-lake-green"
         >
             <div class="flex items-start mb-3">
-                <!-- 時間與圖示 -->
                 <div class="flex-shrink-0 mr-4 pt-1">
                     <span v-html="getScheduleIcon(item.type)" class="text-2xl leading-none"></span>
                 </div>
-                <!-- 標題與細節 -->
                 <div class="flex-grow">
                     <div class="text-sm font-bold text-accent mb-1">{{ item.time }}</div>
                     <div class="text-lg font-extrabold text-gray-800">{{ item.item }}</div>
                     <p class="text-xs text-gray-500 mt-1">{{ item.detail }}</p>
                 </div>
-                <!-- 預估費用 -->
                 <div class="flex-shrink-0 text-right ml-4 pt-1">
                     <div class="text-sm font-semibold text-gray-700 flex items-center justify-end">
                         <svg class="w-4 h-4 mr-1 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9H7m14 0c0-4.97-4.03-9-9-9S3 4.03 3 9h18zM3 15h18c0 4.97-4.03 9-9 9s-9-4.03-9-9z"></path></svg>
@@ -129,16 +119,13 @@
                 </div>
             </div>
 
-            <!-- 操作按鈕 -->
             <div class="flex justify-start space-x-2 border-t pt-3 mt-3">
-                <!-- 編輯按鈕：現在傳遞 day 和 index -->
                 <button @click="editItem(currentDay.day, index)"
                     class="flex items-center p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors text-sm"
                 >
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-7-7l-4 4-2 2v4h4l2-2 4-4m-7-7l2 2m4 4l2 2"></path></svg>
                     編輯
                 </button>
-                <!-- 刪除按鈕：現在傳遞 day 和 index -->
                 <button @click="deleteItem(currentDay.day, index)"
                     class="flex items-center p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm"
                 >
@@ -152,7 +139,6 @@
                     導航
                 </button>
                 
-                <!-- 新增 AI 建議按鈕 -->
                 <button @click="generateSuggestion(currentDay.day, index)"
                     :disabled="isGenerating"
                     class="flex items-center p-2 rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors text-sm disabled:opacity-50"
@@ -164,7 +150,6 @@
         </div>
     </main>
 
-    <!-- 4. 新增按鈕 (固定底部 App 樣式) -->
     <div class="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-2xl z-20">
         <button @click="openAddItemModal"
             class="w-full py-3 rounded-xl text-white font-bold text-lg bg-lake-green hover:bg-accent transition-all duration-300 shadow-md"
@@ -173,7 +158,6 @@
         </button>
     </div>
 
-    <!-- 5. 新增/編輯 Modal 視窗 -->
     <transition name="modal">
         <div v-if="isModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
             <div class="bg-white w-11/12 sm:w-96 p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-lake-green">
@@ -228,7 +212,6 @@
         </div>
     </transition>
 
-    <!-- 6. LLM 建議 Modal 視窗 (新增) -->
     <transition name="modal">
         <div v-if="isSuggestionModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
             <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[80vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-yellow-500">
@@ -238,10 +221,8 @@
                 </h3>
 
                 <div v-if="suggestionResult.text" class="prose max-w-none">
-                    <!-- 顯示 Markdown 格式的建議文本 -->
                     <div v-html="renderMarkdown(suggestionResult.text)" class="text-gray-700 mb-6"></div>
 
-                    <!-- 引用來源 -->
                     <div v-if="suggestionResult.sources.length" class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
                         <p class="font-semibold mb-1">參考資訊來源 (Google 搜尋):</p>
                         <ul class="list-disc list-inside space-y-1">
@@ -266,6 +247,61 @@
             </div>
         </div>
     </transition>
+    
+    <transition name="modal">
+        <div v-if="isGuideModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
+            <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-accent">
+                <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 flex items-center">
+                    <span class="text-lake-green text-2xl mr-2">🗺️</span>
+                    春節交通搭車指南與注意事項總結
+                </h3>
+
+                <div class="space-y-6">
+                    <div class="border p-4 rounded-xl bg-gray-50">
+                        <h4 class="text-lg font-bold text-lake-green mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                            關鍵交通路線與搭乘指引
+                        </h4>
+                        <ul class="list-disc list-inside space-y-2 text-gray-700">
+                            <li v-for="(transport, tIndex) in guideSummary.transport" :key="tIndex" class="text-sm">
+                                <strong>Day {{ guideSummary.transport.findIndex(t => t.item === transport.item) + 1 }} - {{ transport.item }} ({{ transport.time }})：</strong> {{ transport.detail }} <span class="font-semibold text-red-500">({{ formatCost(transport.cost) }})</span>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="border p-4 rounded-xl bg-red-50 border-red-300">
+                        <h4 class="text-lg font-bold text-red-700 mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            每日春節人流與注意事項
+                        </h4>
+                        <ul class="list-disc list-inside space-y-2 text-red-800">
+                            <li v-for="(warning, wIndex) in guideSummary.warnings" :key="wIndex" class="text-sm">
+                                <strong>{{ warning.day }} ({{ warning.city }})：</strong> <span v-html="warning.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')"></span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="text-sm text-gray-600 border-t pt-4">
+                        <p class="font-bold text-gray-800 mb-2">💡 總體旅行建議:</p>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li><strong>交通：</strong> 春節期間高鐵、大巴票務緊張，建議提前至少 30 天預訂。</li>
+                            <li><strong>景點：</strong> 務必使用官方 App 或小程序提前查看景點開閉時間和預約要求（尤其是蘇州博物館）。</li>
+                            <li><strong>餐飲：</strong> 除夕至初三，許多獨立小店會歇業，建議備案連鎖餐廳或在飯店內用餐。</li>
+                            <li>**（記得設定 API Key：** 替代方案建議功能需要您在代碼中替換 `apiKey = ""` 的值才能啟用。)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="flex justify-center pt-6">
+                    <button type="button" @click="isGuideModalOpen = false"
+                            class="py-3 px-8 rounded-lg text-white bg-lake-green hover:bg-accent transition-colors font-semibold shadow-md"
+                    >
+                        瞭解
+                    </button>
+                </div>
+            </div>
+        </div>
+    </transition>
 
 </div>
 
@@ -273,7 +309,8 @@
     const { createApp, ref, computed } = Vue;
 
     // LLM API 相關常數
-    const apiKey = ""; // 運行環境會自動提供
+    // ⚠️ 部署到 GitHub Pages 時，您必須將此處的 "" 替換為您自己的 Google AI API Key，否則「替代方案建議」功能將無法運作。
+    const apiKey = ""; 
     const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
     
     // 完整的旅遊數據，包含所有細節、多組時刻表和春節警告
@@ -460,8 +497,48 @@
             const generatingItemName = ref('');
             // ===========================
 
+            // === 交通指南狀態 (新增) ===
+            const isGuideModalOpen = ref(false);
+            // ===========================
+
 
             // --- Computed Properties ---
+            
+            // 新增: 交通指南總結
+            const guideSummary = computed(() => {
+                const transport = [];
+                const warnings = [];
+
+                itinerary.value.forEach(day => {
+                    // 1. 收集交通資訊
+                    day.schedule.forEach(item => {
+                        // 只收集有費用的交通項目，或費用為 0 但類型是 plane/train/bus/car 的項目
+                        if (['plane', 'train', 'bus', 'car', 'local'].includes(item.type) && (item.cost !== 0 || item.type !== 'local')) {
+                            transport.push({
+                                day: day.day,
+                                city: day.city,
+                                item: item.item,
+                                detail: item.detail,
+                                time: item.time,
+                                cost: item.cost,
+                                type: item.type
+                            });
+                        }
+                    });
+
+                    // 2. 收集春節警告
+                    if (day.cnyWarning) {
+                        warnings.push({
+                            day: day.date,
+                            city: day.city,
+                            text: day.cnyWarning
+                        });
+                    }
+                });
+
+                return { transport, warnings };
+            });
+
 
             const currentDay = computed(() => {
                 // 從 itinerary 陣列中找到當前選擇的日期數據
@@ -688,6 +765,11 @@
                 let result = null;
 
                 try {
+                    // 檢查 API Key 是否設定
+                    if (!apiKey || apiKey === "") {
+                        throw new Error("API Key 尚未設定。請在程式碼中替換 apiKey 變數。");
+                    }
+
                     const response = await exponentialBackoffFetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -731,10 +813,12 @@
                 currentDay,
                 isModalOpen,
                 editingItem,
-                isSuggestionModalOpen, // 新增
-                suggestionResult,      // 新增
-                isGenerating,          // 新增
-                generatingItemName,    // 新增
+                isSuggestionModalOpen, // LLM
+                suggestionResult,      // LLM
+                isGenerating,          // LLM
+                generatingItemName,    // LLM
+                isGuideModalOpen,      // 新增
+                guideSummary,          // 新增
                 setCurrentDate,
                 openAddItemModal,
                 editItem,
@@ -744,8 +828,8 @@
                 getWeatherIcon,
                 getScheduleIcon,
                 formatCost,
-                generateSuggestion,    // 新增
-                renderMarkdown         // 新增
+                generateSuggestion,    // LLM
+                renderMarkdown         // LLM
             };
         }
     }).mount('#app');
@@ -754,4 +838,3 @@
 </body>
 
 </html>
-
