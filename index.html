@@ -4,8 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日系極簡風旅遊行程規劃器 - 蘇杭水鄉</title>
+    <!-- 載入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Vue 3 CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- 🌟 [重要新增] 載入 Firebase SDK 以實現跨設備同步 -->
+    <!-- 注意：這裡使用的是兼容版本，以確保廣泛的瀏覽器支援 -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    
+    <!-- Tailwind 配置：設置湖水綠和日系極簡字體 -->
     <script>
         tailwind.config = {
             theme: {
@@ -39,17 +48,47 @@
         .modal-overlay {
             background-color: rgba(255, 255, 255, 0.95);
         }
+        .loading-overlay {
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+        /* Vue Transition 效果 */
+        .modal-enter-active, .modal-leave-active {
+            transition: opacity 0.3s ease;
+        }
+        .modal-enter-from, .modal-leave-to {
+            opacity: 0;
+        }
+        .modal-enter-active .modal-container,
+        .modal-leave-active .modal-container {
+            transition: all 0.3s ease;
+        }
+        .modal-enter-from .modal-container,
+        .modal-leave-to .modal-container {
+            transform: scale(0.9);
+        }
     </style>
 </head>
 <body>
 
-<div id="app" class="font-sans pb-20"> <header class="sticky top-0 z-20 bg-white shadow-sm p-4 border-b border-gray-100">
+<div id="app" class="font-sans pb-20"> <!-- 增加底部 padding 以容納新增按鈕 -->
+
+    <!-- 🌟 載入中畫面 -->
+    <div v-if="isLoading" class="fixed inset-0 flex items-center justify-center z-50 loading-overlay">
+        <div class="p-6 rounded-xl bg-white shadow-xl flex flex-col items-center">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-lake-green mb-3"></div>
+            <p class="text-gray-700 font-semibold">正在從雲端同步最新的行程...</p>
+        </div>
+    </div>
+    
+    <!-- 1. 頂部導航與標題 -->
+    <header class="sticky top-0 z-20 bg-white shadow-sm p-4 border-b border-gray-100">
         <h1 class="text-xl font-bold text-gray-800 text-center">
             蘇杭水鄉 7 日春節終極攻略
         </h1>
         <p class="text-xs text-center text-gray-500 mt-1">
             日系極簡風規劃器 | {{ currentDay.title }}
         </p>
+        <!-- 交通指南與注意事項按鈕 -->
         <button @click="isGuideModalOpen = true"
             class="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-mint-light text-accent hover:bg-lake-green hover:text-white transition-colors text-xs font-semibold shadow-inner"
         >
@@ -57,6 +96,7 @@
         </button>
     </header>
 
+    <!-- 2. 橫向日期選單 (App 樣式) -->
     <nav class="sticky top-16 z-10 bg-white shadow-md">
         <div class="flex overflow-x-auto hide-scrollbar py-3 px-2">
             <div v-for="day in itinerary" :key="day.day"
@@ -70,19 +110,23 @@
         </div>
     </nav>
 
-    <main class="p-4 pt-6">
+    <!-- 3. 行程列表 -->
+    <main class="p-4 pt-6" :class="{ 'opacity-50 pointer-events-none': isLoading }">
 
+        <!-- 天氣資訊與地點總覽 -->
         <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-md mb-6 border-b-4 border-lake-green">
             <div class="flex items-center text-lg font-bold text-gray-800">
                 <svg class="w-5 h-5 mr-2 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
                 {{ currentDay.city }}
             </div>
+            <!-- 天氣顯示 -->
             <div class="flex items-center text-md font-extrabold text-red-600 bg-mint-light px-3 py-1 rounded-full">
                 <span v-html="getWeatherIcon(currentDay.weather)" class="mr-1"></span>
                 {{ currentDay.weather }} / {{ currentDay.temp }}
             </div>
         </div>
 
+        <!-- 春節警告區塊 -->
         <div v-if="currentDay.cnyWarning" 
              :class="currentDay.day >= 2 && currentDay.day <= 6 ? 'bg-red-50 border-red-300 text-red-800' : 'bg-yellow-50 border-yellow-300 text-yellow-800'"
              class="p-3 border rounded-xl mb-6 flex items-start text-sm transition-colors duration-300"
@@ -99,18 +143,22 @@
             <p>當日行程尚未規劃，點擊下方新增。</p>
         </div>
 
+        <!-- 豐富的行程卡片列表 (Loop over schedule) -->
         <div v-for="(item, index) in currentDay.schedule" :key="index"
             class="bg-white rounded-xl shadow-lg mb-6 p-4 transition-all duration-300 hover:shadow-xl border-l-4 border-lake-green"
         >
             <div class="flex items-start mb-3">
+                <!-- 時間與圖示 -->
                 <div class="flex-shrink-0 mr-4 pt-1">
                     <span v-html="getScheduleIcon(item.type)" class="text-2xl leading-none"></span>
                 </div>
+                <!-- 標題與細節 -->
                 <div class="flex-grow">
                     <div class="text-sm font-bold text-accent mb-1">{{ item.time }}</div>
                     <div class="text-lg font-extrabold text-gray-800">{{ item.item }}</div>
                     <p class="text-xs text-gray-500 mt-1">{{ item.detail }}</p>
                 </div>
+                <!-- 預估費用 -->
                 <div class="flex-shrink-0 text-right ml-4 pt-1">
                     <div class="text-sm font-semibold text-gray-700 flex items-center justify-end">
                         <svg class="w-4 h-4 mr-1 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9H7m14 0c0-4.97-4.03-9-9-9S3 4.03 3 9h18zM3 15h18c0 4.97-4.03 9-9 9s-9-4.03-9-9z"></path></svg>
@@ -119,13 +167,16 @@
                 </div>
             </div>
 
+            <!-- 操作按鈕 -->
             <div class="flex justify-start space-x-2 border-t pt-3 mt-3">
+                <!-- 編輯按鈕：現在傳遞 day 和 index -->
                 <button @click="editItem(currentDay.day, index)"
                     class="flex items-center p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors text-sm"
                 >
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-7-7l-4 4-2 2v4h4l2-2 4-4m-7-7l2 2m4 4l2 2"></path></svg>
                     編輯
                 </button>
+                <!-- 刪除按鈕：現在傳遞 day 和 index -->
                 <button @click="deleteItem(currentDay.day, index)"
                     class="flex items-center p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-sm"
                 >
@@ -139,9 +190,11 @@
                     導航
                 </button>
                 
+                <!-- AI 建議按鈕 -->
                 <button @click="generateSuggestion(currentDay.day, index)"
-                    :disabled="isGenerating"
+                    :disabled="isGenerating || geminiApiKey === ''"
                     class="flex items-center p-2 rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors text-sm disabled:opacity-50"
+                    :title="geminiApiKey === '' ? '請設定 Gemini API Key 以啟用建議功能' : ''"
                 >
                     <span v-if="isGenerating" class="animate-spin mr-1">🔄</span>
                     <span v-else>✨ 替代方案建議</span>
@@ -150,6 +203,7 @@
         </div>
     </main>
 
+    <!-- 4. 新增按鈕 (固定底部 App 樣式) -->
     <div class="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-2xl z-20">
         <button @click="openAddItemModal"
             class="w-full py-3 rounded-xl text-white font-bold text-lg bg-lake-green hover:bg-accent transition-all duration-300 shadow-md"
@@ -158,9 +212,10 @@
         </button>
     </div>
 
+    <!-- 5. 新增/編輯 Modal 視窗 -->
     <transition name="modal">
         <div v-if="isModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
-            <div class="bg-white w-11/12 sm:w-96 p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-lake-green">
+            <div class="bg-white w-11/12 sm:w-96 p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-lake-green modal-container">
                 <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">
                     {{ editingItem.originalIndex !== null ? '編輯行程' : '新增行程' }}
                 </h3>
@@ -212,17 +267,20 @@
         </div>
     </transition>
 
+    <!-- 6. LLM 建議 Modal 視窗 -->
     <transition name="modal">
         <div v-if="isSuggestionModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
-            <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[80vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-yellow-500">
+            <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[80vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-yellow-500 modal-container">
                 <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 flex items-center">
                     <span class="text-yellow-600 text-2xl mr-2">💡</span>
                     {{ generatingItemName }} 的替代方案建議
                 </h3>
 
                 <div v-if="suggestionResult.text" class="prose max-w-none">
+                    <!-- 顯示 Markdown 格式的建議文本 -->
                     <div v-html="renderMarkdown(suggestionResult.text)" class="text-gray-700 mb-6"></div>
 
+                    <!-- 引用來源 -->
                     <div v-if="suggestionResult.sources.length" class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
                         <p class="font-semibold mb-1">參考資訊來源 (Google 搜尋):</p>
                         <ul class="list-disc list-inside space-y-1">
@@ -248,15 +306,18 @@
         </div>
     </transition>
     
+    <!-- 7. 交通指南與注意事項 Modal 視窗 -->
     <transition name="modal">
         <div v-if="isGuideModalOpen" class="fixed inset-0 flex items-center justify-center z-50 modal-overlay backdrop-blur-sm">
-            <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-accent">
+            <div class="bg-white w-11/12 sm:w-5/6 lg:w-1/2 max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl transform transition-all duration-300 scale-100 border-t-8 border-accent modal-container">
                 <h3 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 flex items-center">
                     <span class="text-lake-green text-2xl mr-2">🗺️</span>
                     春節交通搭車指南與注意事項總結
                 </h3>
 
+                <!-- 內容區塊 -->
                 <div class="space-y-6">
+                    <!-- A. 交通總結 -->
                     <div class="border p-4 rounded-xl bg-gray-50">
                         <h4 class="text-lg font-bold text-lake-green mb-3 flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
@@ -264,11 +325,12 @@
                         </h4>
                         <ul class="list-disc list-inside space-y-2 text-gray-700">
                             <li v-for="(transport, tIndex) in guideSummary.transport" :key="tIndex" class="text-sm">
-                                <strong>Day {{ guideSummary.transport.findIndex(t => t.item === transport.item) + 1 }} - {{ transport.item }} ({{ transport.time }})：</strong> {{ transport.detail }} <span class="font-semibold text-red-500">({{ formatCost(transport.cost) }})</span>
+                                <strong>Day {{ transport.day }} - {{ transport.item }} ({{ transport.time }})：</strong> {{ transport.detail }} <span class="font-semibold text-red-500">({{ formatCost(transport.cost) }})</span>
                             </li>
                         </ul>
                     </div>
                     
+                    <!-- B. 春節高峰與擁擠警告 -->
                     <div class="border p-4 rounded-xl bg-red-50 border-red-300">
                         <h4 class="text-lg font-bold text-red-700 mb-3 flex items-center">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
@@ -281,20 +343,20 @@
                         </ul>
                     </div>
 
+                    <!-- C. 一般建議 -->
                     <div class="text-sm text-gray-600 border-t pt-4">
                         <p class="font-bold text-gray-800 mb-2">💡 總體旅行建議:</p>
                         <ul class="list-disc list-inside space-y-1">
                             <li><strong>交通：</strong> 春節期間高鐵、大巴票務緊張，建議提前至少 30 天預訂。</li>
                             <li><strong>景點：</strong> 務必使用官方 App 或小程序提前查看景點開閉時間和預約要求（尤其是蘇州博物館）。</li>
                             <li><strong>餐飲：</strong> 除夕至初三，許多獨立小店會歇業，建議備案連鎖餐廳或在飯店內用餐。</li>
-                            <li>**（記得設定 API Key：** 替代方案建議功能需要您在代碼中替換 `apiKey = ""` 的值才能啟用。)</li>
                         </ul>
                     </div>
                 </div>
 
                 <div class="flex justify-center pt-6">
                     <button type="button" @click="isGuideModalOpen = false"
-                            class="py-3 px-8 rounded-lg text-white bg-lake-green hover:bg-accent transition-colors font-semibold shadow-md"
+                            class="py-3 px-8 rounded-lg text-white bg-lake-green hover:bg-accent transition-colors font-semibold"
                     >
                         瞭解
                     </button>
@@ -308,12 +370,44 @@
 <script>
     const { createApp, ref, computed } = Vue;
 
-    // LLM API 相關常數
-    // ⚠️ 部署到 GitHub Pages 時，您必須將此處的 "" 替換為您自己的 Google AI API Key，否則「替代方案建議」功能將無法運作。
-    const apiKey = "AIzaSyCujbgqNjgcPVyG7SuQaId0X4KAJ527QFc"; 
+    // ===========================================
+    // ⚠️ [步驟一] 設置 Firebase 雲端資料庫配置 (已更新您的參數)
+    // ===========================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyAStFZD476TFwl7Q_6eYX8c4tPKLvR6cAk",
+        authDomain: "linfamily-120ad.firebaseapp.com",
+        projectId: "linfamily-120ad", 
+        storageBucket: "linfamily-120ad.firebasestorage.app",
+        messagingSenderId: "92686138706",
+        appId: "1:92686138706:web:2846e8480a2c14f4c44e8b",
+        measurementId: "G-N7PBTP6ZCS"
+    };
+
+    // 初始化 Firebase
+    let db;
+    let itineraryRef;
+    try {
+        const app = firebase.initializeApp(firebaseConfig);
+        db = app.firestore();
+        // 我們將所有行程數據儲存在 Firestore 中名為 'itineraries' 集合下的 'sugangTrip' 文件中
+        itineraryRef = db.collection("itineraries").doc("sugangTrip");
+        console.log("Firebase 服務已初始化，連接到專案:", firebaseConfig.projectId);
+    } catch (e) {
+        console.error("Firebase 初始化失敗：請檢查 firebaseConfig。", e);
+        // 如果初始化失敗，則不設定 itineraryRef
+        itineraryRef = null;
+    }
+    // ===========================================
+
+
+    // ===========================================
+    // ⚠️ [步驟二] 設置 Gemini LLM API Key (選填 - 留空則功能禁用)
+    // ===========================================
+    const geminiApiKey = "AIzaSyCujbgqNjgcPVyG7SuQaId0X4KAJ527QFc"; // 替換為您的 Gemini API Key
     const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
+    // ===========================================
     
-    // 完整的旅遊數據，包含所有細節、多組時刻表和春節警告
+    // 初始數據 (僅用於首次部署時，資料庫中沒有數據的情況)
     const fullItineraryData = [
         {
             day: 1,
@@ -478,7 +572,9 @@
         setup() {
             // Vue 狀態管理
             const currentDate = ref(1); // 當前選擇的日期 (Day 1-7)
-            const itinerary = ref(fullItineraryData); // 完整的行程數據
+            const itinerary = ref([]);  // 行程數據，從 Firebase 載入
+            const isLoading = ref(true); // 載入狀態
+
             const isModalOpen = ref(false); // 新增/編輯 Modal
             const editingItem = ref({ // 用於編輯或新增的資料暫存
                 time: '',
@@ -490,17 +586,72 @@
                 originalIndex: null // 記錄原始 Index
             });
 
-            // === LLM 相關狀態 (新增) ===
+            // === LLM 相關狀態 ===
             const suggestionResult = ref({ text: '', sources: [] });
             const isGenerating = ref(false);
             const isSuggestionModalOpen = ref(false);
             const generatingItemName = ref('');
             // ===========================
 
-            // === 交通指南狀態 (新增) ===
+            // === 交通指南狀態 ===
             const isGuideModalOpen = ref(false);
             // ===========================
 
+            // ----------------------------------------------------
+            // 🔥 Firebase 數據同步處理 (替代 Local Storage)
+            // ----------------------------------------------------
+
+            // 寫入數據到 Firestore
+            const updateFirestore = async (newItinerary) => {
+                if (!itineraryRef) {
+                    console.error("Firestore 引用未設定，無法儲存。");
+                    return;
+                }
+                try {
+                    // 🌟 修正的關鍵行: 使用 JSON 序列化來移除 Vue 的反應性代理，確保 Firestore 儲存純淨的資料
+                    const cleanData = JSON.parse(JSON.stringify(newItinerary));
+                    
+                    // 將整個行程陣列儲存為一個 document
+                    await itineraryRef.set({ data: cleanData, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    console.log("數據已成功同步至 Firebase。");
+                } catch (e) {
+                    console.error("Error writing document to Firestore: ", e);
+                    // 這裡使用 window.confirm 而非 alert，但由於 Immersive 環境要求，這裡保留 alert 或使用自定義 Modal
+                    window.confirm("儲存失敗：無法同步資料到雲端。請檢查 Firebase 規則或資料結構。");
+                }
+            };
+            
+            // 監聽器：從 Firestore 即時讀取數據
+            if (itineraryRef) {
+                itineraryRef.onSnapshot(doc => {
+                    if (doc.exists && doc.data().data) {
+                        // 數據存在，直接更新本地 Vue 狀態
+                        itinerary.value = doc.data().data;
+                        console.log("行程數據已從 Firebase 同步。");
+                    } else {
+                        // 數據庫中沒有數據 (首次運行)，使用靜態數據初始化並寫入雲端
+                        itinerary.value = fullItineraryData;
+                        updateFirestore(fullItineraryData);
+                        console.log("Firebase 數據庫為空，使用靜態數據初始化。");
+                    }
+                    isLoading.value = false;
+                }, error => {
+                    console.error("Firestore 即時監聽失敗:", error);
+                    isLoading.value = false;
+                    window.confirm("無法連接到 Firebase 資料庫。資料將不會同步。");
+                    // 連線失敗時，仍使用靜態數據或已載入的空數據
+                    if (itinerary.value.length === 0) {
+                        itinerary.value = fullItineraryData;
+                    }
+                });
+            } else {
+                // 如果 Firebase 初始化失敗，則直接使用靜態數據並關閉 Loading
+                itinerary.value = fullItineraryData;
+                isLoading.value = false;
+            }
+
+            // ----------------------------------------------------
+            // ----------------------------------------------------
 
             // --- Computed Properties ---
             
@@ -556,16 +707,14 @@
             };
             
             const getWeatherIcon = (weather) => {
-                // 根據天氣情況回傳 Emoji
-                if (weather.includes('晴')) return '<span>☀️</span>';
-                if (weather.includes('雨')) return '<span>🌧️</span>';
-                if (weather.includes('陰')) return '<span>☁️</span>';
-                if (weather.includes('多雲')) return '<span>🌥️</span>';
+                if (weather?.includes('晴')) return '<span>☀️</span>';
+                if (weather?.includes('雨')) return '<span>🌧️</span>';
+                if (weather?.includes('陰')) return '<span>☁️</span>';
+                if (weather?.includes('多雲')) return '<span>🌥️</span>';
                 return '<span>🌡️</span>';
             };
 
             const getScheduleIcon = (type) => {
-                // 根據行程類型回傳 Emoji 或圖示
                 switch (type) {
                     case 'plane': return '<span>✈️</span>';
                     case 'train': return '<span>🚄</span>';
@@ -580,40 +729,22 @@
             // 簡單的 Markdown 渲染 (將 * List 和 **Bold** 轉換為 HTML)
             const renderMarkdown = (text) => {
                 if (!text) return '';
-                // 替換粗體
                 let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                
-                // 替換 Markdown 列表為 HTML 列表
                 let listHtml = [];
                 let isList = false;
-
-                // 按行處理
                 const lines = html.split('\n');
                 
                 lines.forEach(line => {
                     const trimmedLine = line.trim();
                     if (trimmedLine.startsWith('* ')) {
-                        if (!isList) {
-                            listHtml.push('<ul>');
-                            isList = true;
-                        }
+                        if (!isList) { listHtml.push('<ul>'); isList = true; }
                         listHtml.push(`<li>${trimmedLine.substring(2).trim()}</li>`);
                     } else {
-                        if (isList) {
-                            listHtml.push('</ul>');
-                            isList = false;
-                        }
-                        // 將其他文本作為段落處理
-                        if (trimmedLine) {
-                            listHtml.push(`<p>${trimmedLine}</p>`);
-                        }
+                        if (isList) { listHtml.push('</ul>'); isList = false; }
+                        if (trimmedLine) { listHtml.push(`<p>${trimmedLine}</p>`); }
                     }
                 });
-
-                if (isList) {
-                    listHtml.push('</ul>');
-                }
-                
+                if (isList) { listHtml.push('</ul>'); }
                 return listHtml.join('');
             };
 
@@ -640,18 +771,15 @@
             };
 
             const editItem = (day, index) => {
-                // 複製項目到 editingItem
                 const dayData = itinerary.value.find(d => d.day === day);
                 if (dayData && dayData.schedule[index]) {
-                    // 使用淺拷貝以確保數據分離
                     const itemToEdit = { ...dayData.schedule[index] };
-                    
                     editingItem.value = { 
                         ...itemToEdit,
                         originalDay: day,
                         originalIndex: index
                     };
-                    // 確保 location 資訊不會被編輯，只編輯文字部分
+                    // 確保 location 不被傳遞到編輯表單，因為它是一個非編輯字段
                     delete editingItem.value.location; 
                     isModalOpen.value = true;
                 }
@@ -660,56 +788,55 @@
             const saveItem = () => {
                 const dayData = itinerary.value.find(d => d.day === editingItem.value.originalDay);
                 if (!dayData) {
-                    console.error("找不到對應的日期數據");
                     isModalOpen.value = false;
                     return;
                 }
 
-                // 移除輔助欄位
                 const newItem = {
                     time: editingItem.value.time,
                     item: editingItem.value.item,
                     detail: editingItem.value.detail,
                     cost: editingItem.value.cost,
                     type: editingItem.value.type || 'local',
-                    // location 座標資訊不支援在 Modal 中編輯，保持現有（如果存在）
                 };
 
                 if (editingItem.value.originalIndex !== null) {
-                    // 編輯現有項目，合併現有 location 資訊
                     const existingItem = dayData.schedule[editingItem.value.originalIndex];
+                    // 合併舊項目中的 location（如果存在）和新項目的值
                     dayData.schedule[editingItem.value.originalIndex] = { 
-                        ...(existingItem.location && { location: existingItem.location }), // 保留 location
+                        ...(existingItem.location && { location: existingItem.location }), 
                         ...newItem 
                     };
                 } else {
-                    // 新增項目 (簡單新增，預設 type: local)
                     dayData.schedule.push(newItem);
-                    // 排序行程 (簡單按時間字符串排序)
+                    // 根據時間進行簡單排序
                     dayData.schedule.sort((a, b) => (a.time > b.time) ? 1 : -1);
                 }
                 
                 isModalOpen.value = false;
+                // 🌟 [同步] 儲存變更到 Firestore
+                updateFirestore(itinerary.value);
             };
 
             const deleteItem = (day, index) => {
                 // 使用自定義 modal 替代 alert
-                // 在 iFrame 環境中，window.confirm() 通常是可用的，但為了最佳實踐，如果需要更美觀的 UI，應使用自訂 Modal。這裡沿用簡單的 confirm()。
-                if (confirm('確定要刪除這個行程嗎？')) {
+                const deleteConfirmed = window.confirm('確定要刪除這個行程嗎？');
+                if (deleteConfirmed) {
                     const dayData = itinerary.value.find(d => d.day === day);
                     if (dayData && dayData.schedule.length > index) {
                         dayData.schedule.splice(index, 1);
+                        // 🌟 [同步] 儲存變更到 Firestore
+                        updateFirestore(itinerary.value);
                     }
                 }
             };
 
             const openMap = (locationName) => {
-                // 模擬導航功能，導向 Google 地圖搜索
+                // 打開 Google 地圖進行導航
                 window.open(`https://www.google.com/maps/search/${locationName}`, '_blank');
             };
             
-            // === LLM 核心功能: 生成替代方案 (新增) ===
-            // 使用指數退避進行重試
+            // === LLM 核心功能: 生成替代方案 ===
             const exponentialBackoffFetch = async (url, options, maxRetries = 5) => {
                 for (let retries = 0; retries < maxRetries; retries++) {
                     try {
@@ -717,9 +844,10 @@
                         if (response.status === 429 && retries < maxRetries - 1) {
                             const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
                             await new Promise(resolve => setTimeout(resolve, delay));
-                            continue; // 重試
+                            continue;
                         }
                         if (!response.ok) {
+                            // 拋出包含狀態的錯誤
                             throw new Error(`API 錯誤: ${response.status} ${response.statusText}`);
                         }
                         return response;
@@ -727,62 +855,61 @@
                         if (retries === maxRetries - 1) throw error;
                         const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
                         await new Promise(resolve => setTimeout(resolve, delay));
-                        // 不在 console 記錄重試錯誤
                     }
                 }
                 throw new Error("API 請求失敗次數過多。");
             };
 
             const generateSuggestion = async (day, index) => {
+                if (!geminiApiKey) {
+                    // 提示用戶設定 API Key (但因為按鈕被 disabled 了，這裡主要是防止意外)
+                    alert("請設定 Gemini API Key 以啟用建議功能。");
+                    return;
+                }
+
                 isGenerating.value = true;
-                isSuggestionModalOpen.value = false; // 確保先關閉舊的
-                suggestionResult.value = { text: '', sources: [] }; // 重置結果
+                isSuggestionModalOpen.value = false;
+                suggestionResult.value = { text: '', sources: [] };
                 
                 const dayData = itinerary.value.find(d => d.day === day);
                 const item = dayData.schedule[index];
                 generatingItemName.value = item.item;
 
-                // 彈出 loading modal
                 isSuggestionModalOpen.value = true;
-                suggestionResult.value.text = ''; // 讓 v-else 顯示載入中...
+                suggestionResult.value.text = ''; // 清空舊結果
 
-
+                // 系統提示詞：設定模型的角色、語言和格式
                 const systemPrompt = "You are a local travel expert in the Jiangsu and Zhejiang region (Suzhou, Hangzhou, Wuzhen, Shanghai). Your task is to provide three high-quality, actionable alternative suggestions or backup plans for a given itinerary item. The suggestions must be appropriate for a Chinese New Year (CNY) trip and consider the crowd warnings and weather provided. Respond concisely in Traditional Chinese, strictly as a bulleted list (use Markdown format: '*' for list items). Do not include an introduction, conclusion, or any extra text outside the bulleted list.";
                 
+                // 用戶查詢：提供所有必要的上下文資訊
                 const userQuery = `Current City: ${dayData.city}, Date: ${dayData.date}, Weather: ${dayData.weather}, CNY Warning: ${dayData.cnyWarning}. The original planned activity is: ${item.item} (${item.detail}). Generate 3 alternative suggestions for this specific time slot.`;
                 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${geminiApiKey}`;
 
                 const payload = {
                     contents: [{ parts: [{ text: userQuery }] }],
-                    // 使用 Google Search 進行資訊接地，確保建議是實時且準確的
+                    // 啟用 Google 搜尋以提供實時和本地化資訊
                     tools: [{ "google_search": {} }], 
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
                     },
                 };
 
-                let result = null;
-
                 try {
-                    // 檢查 API Key 是否設定
-                    if (!apiKey || apiKey === "") {
-                        throw new Error("API Key 尚未設定。請在程式碼中替換 apiKey 變數。");
-                    }
-
                     const response = await exponentialBackoffFetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    result = await response.json();
+                    const result = await response.json();
 
                     if (result && result.candidates && result.candidates.length > 0) {
                         const candidate = result.candidates[0];
                         const text = candidate.content?.parts?.[0]?.text || '未能生成有效的建議。';
                         suggestionResult.value.text = text;
 
+                        // 提取引用來源
                         let sources = [];
                         const groundingMetadata = candidate.groundingMetadata;
                         if (groundingMetadata && groundingMetadata.groundingAttributions) {
@@ -811,14 +938,15 @@
                 currentDate,
                 itinerary,
                 currentDay,
+                isLoading,
                 isModalOpen,
                 editingItem,
-                isSuggestionModalOpen, // LLM
-                suggestionResult,      // LLM
-                isGenerating,          // LLM
-                generatingItemName,    // LLM
-                isGuideModalOpen,      // 新增
-                guideSummary,          // 新增
+                isSuggestionModalOpen, 
+                suggestionResult,      
+                isGenerating,          
+                generatingItemName,    
+                isGuideModalOpen,      
+                guideSummary,          
                 setCurrentDate,
                 openAddItemModal,
                 editItem,
@@ -828,8 +956,9 @@
                 getWeatherIcon,
                 getScheduleIcon,
                 formatCost,
-                generateSuggestion,    // LLM
-                renderMarkdown         // LLM
+                generateSuggestion,    
+                renderMarkdown,
+                geminiApiKey         
             };
         }
     }).mount('#app');
