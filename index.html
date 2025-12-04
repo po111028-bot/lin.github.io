@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>旅遊行程規劃器 - 蘇杭水鄉</title>
+    <title>日系極簡風旅遊行程規劃器 - 蘇杭水鄉</title>
     <!-- 載入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Vue 3 CDN -->
@@ -403,7 +403,8 @@
         measurementId: "G-N7PBTP6ZCS"
     };
     const geminiApiKey = "AIzaSyCujbgqNjgcPVyG7SuQaId0X4KAJ527QFc"; // 已套用您的 API Key
-    const LLM_MODEL = "gemini-1.5-flash"; // 使用更穩定的 1.5-flash
+    // 修正：改用 gemini-pro 模型，這是最通用的版本，能避免 'model not found' 錯誤
+    const LLM_MODEL = "gemini-pro"; 
 
     // 初始數據
     const fullItineraryData = [
