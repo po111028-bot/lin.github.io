@@ -134,7 +134,7 @@
                 <button @click="deleteItem(currentDay.day, index)" class="flex-shrink-0 flex items-center px-3 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-xs font-bold whitespace-nowrap">刪除</button>
                 <button @click="openMap(item.location ? item.location.name : item.item)" class="flex-shrink-0 flex items-center px-3 py-2 rounded-lg bg-lake-green text-white hover:bg-accent transition-colors text-xs font-bold whitespace-nowrap">導航</button>
                 
-                <!-- 修正：建議按鈕不再被 disabled，點擊會觸發 JS 檢查 -->
+                <!-- 修正：建議按鈕，已套用您的 API Key -->
                 <button @click="generateSuggestion(currentDay.day, index)" :disabled="isGenerating" class="flex-shrink-0 flex items-center px-3 py-2 rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors text-xs font-bold whitespace-nowrap disabled:opacity-50">✨ 建議</button>
                 
                 <!-- 伸縮指南按鈕 -->
@@ -143,7 +143,7 @@
                 </button>
             </div>
 
-            <!-- 新增：伸縮交通指南對話框 -->
+            <!-- 新增：伸縮交通指南對話框 (移除本日警示) -->
             <transition name="expand">
                 <div v-if="item.isGuideOpen" class="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-sm text-gray-700 relative">
                     <div class="absolute -top-2 right-4 w-4 h-4 bg-yellow-50 border-t border-l border-yellow-200 transform rotate-45"></div>
@@ -402,8 +402,8 @@
         appId: "1:92686138706:web:2846e8480a2c14f4c44e8b",
         measurementId: "G-N7PBTP6ZCS"
     };
-    const geminiApiKey = ""; // 若需要 LLM 建議請填入
-    const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
+    const geminiApiKey = "AIzaSyCujbgqNjgcPVyG7SuQaId0X4KAJ527QFc"; // 已套用您的 API Key
+    const LLM_MODEL = "gemini-1.5-flash"; // 使用更穩定的 1.5-flash
 
     // 初始數據
     const fullItineraryData = [
@@ -717,8 +717,31 @@
                 generatingItemName.value = item.item;
                 // ... (LLM logic same as before) ...
                 // 為了節省篇幅，此處省略 fetch 細節，功能邏輯與之前相同，請確保您的 API Key 有填入
-                isGenerating.value = false; 
-                suggestionResult.value.text = "建議功能需填入 API Key 才能運作。"; 
+                // 若需要完整 LLM 邏輯請參考上一版代碼
+                // ===================================
+                // 修正：補回完整的 API Fetch 邏輯以確保按鈕可運作
+                // ===================================
+                const systemPrompt = "You are a local travel expert in the Jiangsu and Zhejiang region (Suzhou, Hangzhou, Wuzhen, Shanghai). Your task is to provide three high-quality, actionable alternative suggestions or backup plans for a given itinerary item. The suggestions must be appropriate for a Chinese New Year (CNY) trip and consider the crowd warnings and weather provided. Respond concisely in Traditional Chinese, strictly as a bulleted list (use Markdown format: '*' for list items). Do not include an introduction, conclusion, or any extra text outside the bulleted list.";
+                const userQuery = `Current City: ${itinerary.value.find(d => d.day === day).city}, Item: ${item.item} (${item.detail}). Generate 3 alternative suggestions.`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${geminiApiKey}`;
+                const payload = { contents: [{ parts: [{ text: userQuery }] }], tools: [{ "google_search": {} }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+
+                try {
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    const result = await response.json();
+                    if (result && result.candidates && result.candidates.length > 0) {
+                        const candidate = result.candidates[0];
+                        suggestionResult.value.text = candidate.content?.parts?.[0]?.text || '未能生成建議。';
+                        suggestionResult.value.sources = candidate.groundingMetadata?.groundingAttributions?.map(a => ({ uri: a.web?.uri, title: a.web?.title })).filter(s => s.uri && s.title) || [];
+                    } else {
+                        suggestionResult.value.text = '無法取得建議，請稍後再試。';
+                    }
+                } catch (e) {
+                    console.error(e);
+                    suggestionResult.value.text = `API 錯誤: ${e.message}`;
+                } finally {
+                    isGenerating.value = false;
+                }
             };
 
             return {
