@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>日系極簡風旅遊行程規劃器 - 蘇杭水鄉</title>
+    
+    <!-- 🌟 PWA / 加入主畫面設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="蘇杭攻略">
+    
+    <!-- 🌟 App Icon (已更新為您的指定照片) -->
+    <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/po111028-bot/lin.github.io/357b9ab1524031c947e162eeff7ade50a09feda8/M_PIC1901-004406.jpg">
+    <link rel="icon" type="image/jpeg" href="https://raw.githubusercontent.com/po111028-bot/lin.github.io/357b9ab1524031c947e162eeff7ade50a09feda8/M_PIC1901-004406.jpg">
+
     <!-- 載入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 Vue 3 CDN -->
@@ -134,7 +144,7 @@
                 <button @click="deleteItem(currentDay.day, index)" class="flex-shrink-0 flex items-center px-3 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors text-xs font-bold whitespace-nowrap">刪除</button>
                 <button @click="openMap(item.location ? item.location.name : item.item)" class="flex-shrink-0 flex items-center px-3 py-2 rounded-lg bg-lake-green text-white hover:bg-accent transition-colors text-xs font-bold whitespace-nowrap">導航</button>
                 
-                <!-- 修正：建議按鈕，已套用您的 API Key -->
+                <!-- 建議按鈕 -->
                 <button @click="generateSuggestion(currentDay.day, index)" :disabled="isGenerating" class="flex-shrink-0 flex items-center px-3 py-2 rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors text-xs font-bold whitespace-nowrap disabled:opacity-50">✨ 建議</button>
                 
                 <!-- 伸縮指南按鈕 -->
@@ -402,7 +412,7 @@
         appId: "1:92686138706:web:2846e8480a2c14f4c44e8b",
         measurementId: "G-N7PBTP6ZCS"
     };
-    const geminiApiKey = "AIzaSyBETXcUXu-caIvK1Dr5ChMzkyUIRoy7zvA"; // 您的 API Key
+    const geminiApiKey = "AIzaSyBETXcUXu-caIvK1Dr5ChMzkyUIRoy7zvA"; // 已更新您的 API Key
     // 修正：使用 gemini-2.5-flash-preview-09-2025，這是系統目前支援的模型
     const LLM_MODEL = "gemini-2.5-flash-preview-09-2025"; 
 
